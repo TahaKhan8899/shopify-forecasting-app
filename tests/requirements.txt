@@ -1,0 +1,3 @@
+pytest>=7.0.0
+pytz>=2023.3
+coverage>=7.0.0 

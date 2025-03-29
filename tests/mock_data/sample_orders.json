@@ -1,0 +1,152 @@
+[
+  {
+    "id": "gid://shopify/Order/1",
+    "createdAt": "2024-01-15T12:00:00Z",
+    "totalPriceSet": {
+      "shopMoney": {
+        "amount": "100.00",
+        "currencyCode": "USD"
+      }
+    },
+    "totalRefundedSet": {
+      "shopMoney": {
+        "amount": "0.00",
+        "currencyCode": "USD"
+      }
+    },
+    "customer": {
+      "id": "gid://shopify/Customer/1",
+      "email": "customer1@example.com",
+      "orders": {
+        "edges": [
+          {
+            "node": {
+              "id": "gid://shopify/Order/1",
+              "createdAt": "2024-01-15T12:00:00Z"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "gid://shopify/Order/2",
+    "createdAt": "2024-02-20T15:30:00Z",
+    "totalPriceSet": {
+      "shopMoney": {
+        "amount": "150.00",
+        "currencyCode": "USD"
+      }
+    },
+    "totalRefundedSet": {
+      "shopMoney": {
+        "amount": "20.00",
+        "currencyCode": "USD"
+      }
+    },
+    "customer": {
+      "id": "gid://shopify/Customer/1",
+      "email": "customer1@example.com",
+      "orders": {
+        "edges": [
+          {
+            "node": {
+              "id": "gid://shopify/Order/1",
+              "createdAt": "2024-01-15T12:00:00Z"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "gid://shopify/Order/3",
+    "createdAt": "2024-03-05T10:15:00Z",
+    "totalPriceSet": {
+      "shopMoney": {
+        "amount": "75.50",
+        "currencyCode": "USD"
+      }
+    },
+    "totalRefundedSet": {
+      "shopMoney": {
+        "amount": "0.00",
+        "currencyCode": "USD"
+      }
+    },
+    "customer": {
+      "id": "gid://shopify/Customer/2",
+      "email": "customer2@example.com",
+      "orders": {
+        "edges": [
+          {
+            "node": {
+              "id": "gid://shopify/Order/3",
+              "createdAt": "2024-03-05T10:15:00Z"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "gid://shopify/Order/4",
+    "createdAt": "2024-04-10T14:20:00Z",
+    "totalPriceSet": {
+      "shopMoney": {
+        "amount": "200.00",
+        "currencyCode": "USD"
+      }
+    },
+    "totalRefundedSet": {
+      "shopMoney": {
+        "amount": "50.00",
+        "currencyCode": "USD"
+      }
+    },
+    "customer": {
+      "id": "gid://shopify/Customer/2",
+      "email": "customer2@example.com",
+      "orders": {
+        "edges": [
+          {
+            "node": {
+              "id": "gid://shopify/Order/3",
+              "createdAt": "2024-03-05T10:15:00Z"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "gid://shopify/Order/5",
+    "createdAt": "2024-06-15T09:30:00Z",
+    "totalPriceSet": {
+      "shopMoney": {
+        "amount": "500.00",
+        "currencyCode": "USD"
+      }
+    },
+    "totalRefundedSet": {
+      "shopMoney": {
+        "amount": "0.00",
+        "currencyCode": "USD"
+      }
+    },
+    "customer": {
+      "id": "gid://shopify/Customer/3",
+      "email": "customer3@example.com",
+      "orders": {
+        "edges": [
+          {
+            "node": {
+              "id": "gid://shopify/Order/5",
+              "createdAt": "2024-06-15T09:30:00Z"
+            }
+          }
+        ]
+      }
+    }
+  }
+] 

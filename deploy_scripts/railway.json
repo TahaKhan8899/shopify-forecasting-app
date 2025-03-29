@@ -1,0 +1,19 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "pip install -r requirements.txt"
+  },
+  "deploy": {
+    "startCommand": "python main.py",
+    "healthcheckPath": "/",
+    "healthcheckTimeout": 100,
+    "restartPolicyType": "NEVER"
+  },
+  "schedule": [
+    {
+      "name": "Monthly AOV Report",
+      "cron": "0 3 1 * *"
+    }
+  ]
+} 

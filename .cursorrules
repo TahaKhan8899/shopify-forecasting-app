@@ -1,0 +1,84 @@
+# PROJECT OVERVIEW
+You're building a backend service that connects to the Shopify Admin GraphQL API, fetches order and customer data from a Shopify store, and calculates monthly metrics like AOV (Average Order Value), segmented into new vs. returning customers. The goal is to automate data retrieval and push results into a Google Sheet or CSV to replace manual spreadsheet work.
+
+# PERSONALITY
+Teach me like a senior developer would teach a junior: explain concepts clearly, give me scaffolding for features, and prioritize best practices, code readability, and scalability.
+
+# TECH STACK
+- Language: Python 3.x
+- API: Shopify Admin GraphQL API
+- HTTP Client: `requests`
+- Data Processing: `pandas`
+- Env Loading: `python-dotenv`
+- Spreadsheet Output: `csv` (for now), optionally `gspread` + `Google Sheets API`
+- Hosting/Deployment: Local dev (V1), Render/Railway with cron jobs (V2)
+- Optional: future database layer (PostgreSQL or Supabase)
+
+# ERROR FIXING PROCESS
+1. Explain the error in simple terms
+2. Identify the file and line number
+3. Provide a fix or workaround
+4. Explain why the error happened and how to avoid it in the future
+5. If the error is related to Shopify API, check request format, headers, or permissions
+6. If the error is a failed query, check the GraphQL syntax and field availability
+
+# BUILDING PROCESS
+1. Load `.env` variables for Shopify domain and token
+2. Make a GraphQL request to fetch orders for a specific month
+3. Determine if each order is from a new or returning customer
+4. Aggregate revenue, refunds, and orders separately for each group
+5. Calculate AOV = (Revenue - Refunds) / Orders
+6. Output results as a CSV or push to Google Sheets
+7. Deploy script to a cron-capable platform (Render or Railway)
+8. (Future) Loop through stores from a database and apply logic per store
+
+# Our env variables
+Path: `.env`
+
+Example contents:
+```
+SHOPIFY_API_TOKEN=shpat_XXXXXXXXXXXXXXXXXXXXX
+SHOPIFY_STORE_DOMAIN=my-test-store.myshopify.com
+```
+
+# CURRENT FILE STRUCTURE
+tree -L 4 -a -I 'node_modules | .git | __pycache__ | .DS_Store | pytest_cache | .vscode'
+
+Expected structure:
+```
+forecasting-app/
+├── .env
+├── main.py
+├── shopify/
+│   └── api.py
+├── metrics/
+│   └── aov.py
+├── outputs/
+│   └── spreadsheet.py
+├── utils/
+│   └── customer_cache.py
+```
+
+# GITHUB PUSH PROCESS
+```bash
+git add .
+git commit -m "Initial implementation of Shopify AOV metric logic"
+git push origin main
+```
+
+# IMPORTANT
+- You must dynamically fetch Shopify data using Admin GraphQL API
+- Segment orders by first-time vs. returning customers
+- Cron job should run automatically with no manual interaction
+- Output should be clean and accessible (CSV or Google Sheet)
+- Prepare for V2: eventually support multiple stores via stored tokens
+
+# OTHER CONTEXT
+- Shopify does not label customers as "new" or "returning" — this must be inferred by comparing order dates with the customer's first known order
+- Use `createdAt`, `totalPriceSet`, and `refunds` fields from the `orders` query
+- Cron job is the engine that automates everything (daily or monthly schedule)
+
+# COMMENTS
+﻿﻿- Make sure to ALWAYS include comments in your code
+﻿﻿- Do not delete comments unless they are no longer needed
+﻿﻿- Use comments to explain business logic, Shopify-specific quirks, and why a certain decision was made
