@@ -118,6 +118,85 @@ class AOVCalculator:
             logger.warning(f"Error determining if order is first: {str(e)}")
             return True  # Default to treating as a new customer if we can't determine
     
+    def _determine_customer_type(self, order: Dict, current_month_start: datetime) -> str:
+        """
+        Determine customer type based on definitions:
+        - New customers: acquired in the current month
+        - Returning customers: 
+            - Recently acquired (acquired within the last 6 months)
+            - Active non-recent (acquired more than 6 months ago and reordered within the last 6 months)
+        
+        Args:
+            order: Order dictionary from Shopify API
+            current_month_start: Start date of the current month
+            
+        Returns:
+            'new_customers' or 'returning_customers'
+        """
+        try:
+            # Get the current order date
+            order_date = self._parse_order_date(order['createdAt'])
+            customer_id = order.get('customer', {}).get('id')
+            
+            if not customer_id:
+                return 'new_customers'  # Default to new if no customer info
+            
+            # Get customer's first order date from cache or order data
+            first_order_date = self.customer_cache.get_first_order_date(customer_id)
+            
+            # If not in cache, extract from order data
+            if first_order_date is None:
+                customer_orders = order.get('customer', {}).get('orders', {}).get('edges', [])
+                if customer_orders:
+                    first_order_date = self._parse_order_date(customer_orders[0]['node']['createdAt'])
+                else:
+                    # If we can't determine, treat as first order
+                    return 'new_customers'
+            
+            # Define the current month range
+            first_day_of_month = current_month_start
+            last_day_of_month = self._get_month_range(current_month_start)[1]
+            
+            # Calculate six months ago from the current month start
+            six_months_ago = first_day_of_month - timedelta(days=180)  # Approximately 6 months
+            
+            # Check if order date and first order date are within 1 minute (likely the same order)
+            time_diff = abs((order_date - first_order_date).total_seconds())
+            if time_diff < 60:
+                # Same order timestamps - consider as first order
+                if first_day_of_month <= order_date <= last_day_of_month:
+                    return 'new_customers'  # Acquired in current month
+                else:
+                    return 'returning_customers'  # Not acquired in current month
+            
+            # Check if this is actually the first order
+            if order_date <= first_order_date:
+                # This is their first order
+                if first_day_of_month <= order_date <= last_day_of_month:
+                    return 'new_customers'  # Acquired in current month
+                else:
+                    return 'returning_customers'  # Not acquired in current month
+            
+            # This is a repeat purchase - customer is returning
+            # Check when they were first acquired
+            if first_order_date >= six_months_ago:
+                # Recently acquired - within the last 6 months
+                return 'returning_customers'
+            else:
+                # Acquired more than 6 months ago
+                # Check if this order is within the last 6 months (active)
+                if order_date >= six_months_ago:
+                    # Active non-recent customer
+                    return 'returning_customers'
+                else:
+                    # Non-active customer (order older than 6 months)
+                    # This case shouldn't typically occur with proper filtering
+                    return 'returning_customers'
+            
+        except (KeyError, IndexError, ValueError) as e:
+            logger.warning(f"Error determining customer type: {str(e)}")
+            return 'new_customers'  # Default to new customer if we can't determine
+    
     def _get_empty_metrics_template(self) -> Dict:
         """
         Get an empty metrics template with the structure for customer segments.
@@ -194,6 +273,10 @@ class AOVCalculator:
         if update_cache:
             self.customer_cache.update_from_orders(orders)
         
+        # Get the first day of the month for the reporting period
+        # This is used to determine if a customer is "new" in the current month
+        current_month_start = datetime(start_date.year, start_date.month, 1)
+        
         # Process each order
         for order in orders:
             try:
@@ -207,20 +290,10 @@ class AOVCalculator:
                 order_date = self._parse_order_date(order['createdAt'])
                 total_sales, total_refunds, total_revenue = self._get_order_value(order)
                 
-                # Check if this is a new or returning customer
-                # First try to use the cache
-                is_new = self.customer_cache.is_new_customer(customer_id, order_date)
-                
-                # If cache indicates it's not a new customer, verify with order data
-                if not is_new:
-                    is_new = self._is_first_order(order)
+                # Determine customer type using the new logic
+                customer_type = self._determine_customer_type(order, current_month_start)
                 
                 # Update metrics
-                if is_new:
-                    customer_type = 'new_customers'
-                else:
-                    customer_type = 'returning_customers'
-                
                 metrics[customer_type]['order_count'] += 1
                 metrics[customer_type]['total_sales'] += total_sales
                 metrics[customer_type]['total_refunds'] += total_refunds
@@ -372,6 +445,7 @@ class AOVCalculator:
                 
                 # Determine which month this order belongs to
                 order_month_key = self._get_month_key(order_date.year, order_date.month)
+                month_start_date = datetime(order_date.year, order_date.month, 1)
                 
                 # Skip if we don't have this month in our range
                 if order_month_key not in result['months']:
@@ -380,17 +454,10 @@ class AOVCalculator:
                 # Get values from the order
                 total_sales, total_refunds, total_revenue = self._get_order_value(order)
                 
-                # Check if this is a new or returning customer
-                # First try to use the cache
-                is_new = self.customer_cache.is_new_customer(customer_id, order_date)
-                
-                # If cache indicates it's not a new customer, verify with order data
-                if not is_new:
-                    is_new = self._is_first_order(order)
+                # Determine customer type using the new logic
+                customer_type = self._determine_customer_type(order, month_start_date)
                 
                 # Update metrics for the month
-                customer_type = 'new_customers' if is_new else 'returning_customers'
-                
                 month_metrics = result['months'][order_month_key]['metrics']
                 
                 # Update monthly metrics
