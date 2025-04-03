@@ -80,7 +80,7 @@ def get_previous_month_dates() -> tuple:
     
     return first_day_of_previous_month, last_day_of_previous_month
 
-def run_aov_report(month: str = None, year: int = None, month_num: int = None, is_twelve_month: bool = False):
+def run_aov_report(month: str = None, year: int = None, month_num: int = None, is_twelve_month: bool = False, start_date_str: str = None, end_date_str: str = None):
     """
     Run an AOV report for a specific month or year
     
@@ -89,6 +89,8 @@ def run_aov_report(month: str = None, year: int = None, month_num: int = None, i
         year: Year for the report
         month_num: Month number (1-12) for the report
         is_twelve_month: Whether this is a 12-month report
+        start_date_str: Custom start date in YYYY-MM-DD format
+        end_date_str: Custom end date in YYYY-MM-DD format
     """
     # Load environment variables
     load_dotenv()
@@ -106,7 +108,21 @@ def run_aov_report(month: str = None, year: int = None, month_num: int = None, i
     shopify_api = ShopifyAPI(domain, api_token)
     
     # Determine date range based on input parameters
-    if month:
+    if start_date_str and end_date_str:
+        # Custom date range
+        try:
+            start_date = parse_date(start_date_str)
+            end_date = parse_date(end_date_str)
+            
+            if end_date < start_date:
+                logger.error(f"End date {end_date_str} is before start date {start_date_str}")
+                print(f"Error: End date {end_date_str} is before start date {start_date_str}")
+                sys.exit(1)
+        except ValueError as e:
+            logger.error(f"Invalid date format: {str(e)}")
+            print(f"Error: {str(e)}")
+            sys.exit(1)
+    elif month:
         # For a specific month with YYYY-MM format
         try:
             if is_twelve_month:
@@ -261,12 +277,14 @@ def main():
     parser.add_argument('--year', type=int, help='Year for the report')
     parser.add_argument('--month-num', type=int, choices=range(1, 13), help='Month number (1-12) for the report')
     parser.add_argument('--twelve-month', action='store_true', help='Generate a 12-month report ending at the specified month')
+    parser.add_argument('--start-date', type=str, help='Custom start date in YYYY-MM-DD format (e.g., 2023-01-01)')
+    parser.add_argument('--end-date', type=str, help='Custom end date in YYYY-MM-DD format (e.g., 2023-12-31)')
     
     # Parse arguments
     args = parser.parse_args()
     
     # Run the AOV report
-    run_aov_report(args.month, args.year, args.month_num, args.twelve_month)
+    run_aov_report(args.month, args.year, args.month_num, args.twelve_month, args.start_date, args.end_date)
 
 if __name__ == "__main__":
     main()
