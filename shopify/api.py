@@ -1,8 +1,12 @@
 import os
 import requests
+import logging
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime, timedelta
 import json
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 class ShopifyAPI:
     """
@@ -215,6 +219,95 @@ class ShopifyAPI:
         
         return all_orders
 
+    def get_orders_for_customers(self, customer_ids: List[str], start_date: datetime, end_date: datetime) -> int:
+        """
+        Fetch orders within the date range and count only those orders placed by customers in customer_ids.
+        
+        Args:
+            customer_ids: List of customer IDs to filter orders.
+            start_date: Start date for order filtering.
+            end_date: End date for order filtering.
+        
+        Returns:
+            Count of orders placed by the given customers.
+        """
+        orders = self.fetch_all_orders(start_date, end_date)
+        count = 0
+        for order in orders:
+            customer = order.get('customer')
+            if customer and customer.get('id') in customer_ids:
+                count += 1
+        return count
+
+    def get_new_customers(self, start_date: datetime, end_date: datetime, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Fetch all customers created between start_date and end_date using Shopify's GraphQL API.
+        
+        Args:
+            start_date: The start datetime for filtering customer creation.
+            end_date: The end datetime for filtering customer creation.
+            limit: Number of customers to fetch per page.
+        
+        Returns:
+            List of customer objects containing 'id' and 'createdAt'.
+        """
+        all_customers = []
+        cursor = None
+        has_next_page = True
+
+        # Use full ISO8601 timestamps for filtering
+        start_str = start_date.strftime("%Y-%m-%dT00:00:00")
+        end_str = end_date.strftime("%Y-%m-%dT23:59:59")
+        query_filter = f"created_at:>={start_str} AND created_at:<={end_str}"
+        # Log the filter for debugging
+        logger.info(f"Customer query filter: {query_filter}")
+
+        query = """
+        query GetCustomers($first: Int!, $query: String, $cursor: String) {
+          customers(first: $first, query: $query, after: $cursor) {
+            edges {
+              node {
+                id
+                createdAt
+              }
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+          }
+        }
+        """
+        
+        while has_next_page:
+            variables = {
+                "first": limit,
+                "query": query_filter,
+                "cursor": cursor
+            }
+            result = self.execute_query(query, variables)
+            customers_data = result["data"]["customers"]
+            edges = customers_data["edges"]
+            all_customers.extend([edge["node"] for edge in edges])
+            page_info = customers_data["pageInfo"]
+            has_next_page = page_info["hasNextPage"]
+            cursor = page_info["endCursor"] if has_next_page else None
+            
+        return all_customers
+
+    def get_new_customers_count(self, start_date: datetime, end_date: datetime, limit: int = 50) -> int:
+        """
+        Return the count of customers created between start_date and end_date.
+        """
+        customers = self.get_new_customers(start_date, end_date, limit)
+        return len(customers)
+
+    def get_new_customer_ids(self, start_date: datetime, end_date: datetime, limit: int = 50) -> List[str]:
+        """
+        Return a list of customer IDs for customers created between start_date and end_date.
+        """
+        customers = self.get_new_customers(start_date, end_date, limit)
+        return [customer["id"] for customer in customers]
 
 def create_api_client() -> ShopifyAPI:
     """
