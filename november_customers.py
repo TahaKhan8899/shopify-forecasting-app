@@ -1,3 +1,55 @@
+#!/usr/bin/env python
+import os
+import logging
+import calendar
+from datetime import datetime, timezone
+from dotenv import load_dotenv
+from shopify.api import create_api_client
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def main():
+    # Load environment variables
+    load_dotenv()
+    
+    # Define November 2024 timeframe (make timezone-aware)
+    TARGET_YEAR = 2025
+    TARGET_MONTH = 3
+    
+    # Create API client
+    client = create_api_client()
+    
+    # Get precise date range for November 2024 (UTC timezone)
+    nov_start = datetime(TARGET_YEAR, TARGET_MONTH, 1, 0, 0, 0, tzinfo=timezone.utc)
+    nov_end = datetime(TARGET_YEAR, TARGET_MONTH, 
+                      calendar.monthrange(TARGET_YEAR, TARGET_MONTH)[1],
+                      23, 59, 59, tzinfo=timezone.utc)
+    
+    logger.info(f"Analyzing March {TARGET_YEAR} cohort ({nov_start} to {nov_end})")
+    
+    # Get true new customers (first orders in November)
+    try:
+        cohort = client.get_customers_first_order_between(nov_start, nov_end)
+        logger.info(f"Found {len(cohort)} first-time customers in March")
+        
+        # Display results
+        print("\n=== MArch 2025 First-Time Customers ===")
+        print(f"Total: {len(cohort)}")
+        
+        # Optional: Print first 10 as examples
+        print("\nSample customers (first 50):")
+        for i, customer_id in enumerate(cohort[:50], 1):
+            print(f"{i}. {customer_id}")
+            
+    except Exception as e:
+        logger.error(f"Failed to analyze cohort: {str(e)}")
+        raise
+
+if __name__ == "__main__":
+    main()
+
 import os
 import requests
 import logging

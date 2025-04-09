@@ -270,40 +270,53 @@ def run_aov_report(month: str = None, year: int = None, month_num: int = None, i
 
 def main():
     """Main entry point for the script"""
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Generate AOV reports for Shopify store')
+    parser = argparse.ArgumentParser(description='Generate Shopify reports')
     
-    # Add arguments
-    parser.add_argument('--month', type=str, help='Month in YYYY-MM format (e.g., 2023-01 for January 2023)')
+    # Existing AOV report arguments
+    parser.add_argument('--month', type=str, help='Month in YYYY-MM format')
     parser.add_argument('--year', type=int, help='Year for the report')
-    parser.add_argument('--month-num', type=int, choices=range(1, 13), help='Month number (1-12) for the report')
-    parser.add_argument('--twelve-month', action='store_true', help='Generate a 12-month report ending at the specified month')
-    parser.add_argument('--start-date', type=str, help='Custom start date in YYYY-MM-DD format (e.g., 2023-01-01)')
-    parser.add_argument('--end-date', type=str, help='Custom end date in YYYY-MM-DD format (e.g., 2023-12-31)')
-    parser.add_argument('--generate-repeat-report', action="store_true", help="Generate the Assist- Recent Customer Repeat report")
-    # Options to define the cohort date range (in YYYY-MM format)
-    parser.add_argument('--cohort-start', type=str, default="2024-11", help="Cohort start month in YYYY-MM format (default: 2024-11)")
-    parser.add_argument('--cohort-end', type=str, default="2025-03", help="Cohort end month in YYYY-MM format (default: 2025-03)")
-    # Option for output directory
-    parser.add_argument("--output-dir", type=str, default="reports", help="Directory to save the generated reports (default: reports)")
-    # Parse arguments
+    parser.add_argument('--month-num', type=int, choices=range(1, 13), help='Month number (1-12)')
+    parser.add_argument('--twelve-month', action='store_true', help='Generate 12-month report')
+    parser.add_argument('--start-date', type=str, help='Custom start date (YYYY-MM-DD)')
+    parser.add_argument('--end-date', type=str, help='Custom end date (YYYY-MM-DD)')
+    
+    # Cohort report arguments
+    parser.add_argument('--cohort-report', action='store_true', 
+                      help="Generate customer cohort retention report")
+    parser.add_argument('--cohort-start', type=str, 
+                      help="Start month for cohort analysis (YYYY-MM)")
+    parser.add_argument('--cohort-end', type=str,
+                      help="End month for cohort analysis (YYYY-MM)")
+    
+    # Common arguments
+    parser.add_argument('--output-dir', type=str, default="reports",
+                      help="Output directory for generated reports")
+
     args = parser.parse_args()
-    if args.generate_repeat_report:
-        try:
-            # Parse the cohort dates using the provided format
-            cohort_start_date = datetime.strptime(args.cohort_start, "%Y-%m").date()
-            cohort_end_date = datetime.strptime(args.cohort_end, "%Y-%m").date()
-        except ValueError:
-            print("Invalid cohort date format. Please use YYYY-MM.")
-            return
-         # Call the new report generator from recent_repeat.py
-        recent_repeat.generate_recent_repeat_report(cohort_start_date, cohort_end_date, args.output_dir)
-      
-             
-             
+
+    if args.cohort_report:
+        # Validate cohort parameters
+        if not args.cohort_start or not args.cohort_end:
+            parser.error("--cohort-start and --cohort-end required for cohort reports")
+            
+        start_date = datetime.strptime(args.cohort_start, "%Y-%m").date()
+        end_date = datetime.strptime(args.cohort_end, "%Y-%m").date()
+        
+        recent_repeat.generate_recent_repeat_report(
+            cohort_start=start_date,
+            cohort_end=end_date,
+            output_dir=args.output_dir
+        )
     else:
-       # Run the AOV report
-       run_aov_report(args.month, args.year, args.month_num, args.twelve_month, args.start_date, args.end_date)
+        # Existing AOV report functionality
+        run_aov_report(
+            args.month, 
+            args.year, 
+            args.month_num, 
+            args.twelve_month,
+            args.start_date,
+            args.end_date
+        )
 
 if __name__ == "__main__":
     main()

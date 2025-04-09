@@ -1,122 +1,84 @@
 # metrics/recent_repeat.py
-
 import os
 import calendar
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
+from dateutil.relativedelta import relativedelta
 from shopify.api import create_api_client
 from outputs.spreadsheet import MetricsExporter
 from dotenv import load_dotenv
 
 load_dotenv()
-
 logger = logging.getLogger(__name__)
 
-def add_months(sourcedate: date, months: int) -> date:
-    month = sourcedate.month - 1 + months
-    year = sourcedate.year + month // 12
-    month = month % 12 + 1
-    day = min(sourcedate.day, calendar.monthrange(year, month)[1])
-    return date(year, month, day)
-
-def end_of_month(date_obj: date) -> date:
-    last_day = calendar.monthrange(date_obj.year, date_obj.month)[1]
-    return date(date_obj.year, date_obj.month, last_day)
-
 def generate_recent_repeat_report(cohort_start: date, cohort_end: date, output_dir: str) -> None:
-    """
-    Produce a CSV that shows a cohort-based retention matrix:
-      - "Cohort Month"
-      - "New Customers"
-      - "Orders Month0", "RR% Month0", ..., "Orders Month6", "RR% Month6"
-      - An aggregated "All cohorts" row.
-    """
-    logger.info(f"Generating Cohort Analysis from {cohort_start} to {cohort_end}")
-    api_client = create_api_client()
+    """Generate cohort retention report using first-order dates"""
+    logger.info(f"Generating cohort report from {cohort_start} to {cohort_end}")
     
-    # Data structure: For each cohort month, store:
-    # { 'cohort_size': int, 'orders': {0: #orders, 1: #orders, ...} }
-    cohorts_data = {}
+    api = create_api_client()
+    exporter = MetricsExporter(output_dir)
     
-    # "All cohorts" aggregator
-    all_cohorts_size = 0
-    all_cohorts_orders = {offset: 0 for offset in range(7)}
-    
-    current_cohort = cohort_start
-    while current_cohort <= cohort_end:
-        month_label = current_cohort.strftime("%B %Y")
-        # Calculate start/end of that month
-        month_start = date(current_cohort.year, current_cohort.month, 1)
-        month_end = end_of_month(month_start)
+    # Use naive datetimes
+    start_dt = datetime(cohort_start.year, cohort_start.month, 1)
+    end_dt = datetime(cohort_end.year, cohort_end.month, 
+                     calendar.monthrange(cohort_end.year, cohort_end.month)[1],
+                     23, 59, 59)
 
-        # 1. Fetch new customer data
-        new_cust_count = api_client.get_new_customers_count(month_start, month_end)
-        new_cust_ids = api_client.get_new_customer_ids(month_start, month_end)
+    months = []
+    current = start_dt
+    while current <= end_dt:
+        months.append(current)
+        current += relativedelta(months=1)
 
-        # 2. For offsets 0..6, find how many orders were placed
-        offset_orders = {}
+    report_rows = []
+    for cohort_month in months:
+        month_str = cohort_month.strftime("%b %Y")
+        logger.info(f"Processing cohort: {month_str}")
+
+        # Get first-order customers for this month
+        cohort_end_date = cohort_month + relativedelta(months=1) - timedelta(seconds=1)
+        customer_ids = api.get_customers_first_order_between(cohort_month, cohort_end_date)
+        cohort_size = len(customer_ids)
+
+        row_data = {
+            "Cohort Month": month_str,
+            "New Customers": cohort_size
+        }
+        
         for offset in range(7):
-            period_start = add_months(month_start, offset)
-            period_end = end_of_month(period_start)
-            today = datetime.today().date()
+            period_start = cohort_month + relativedelta(months=offset)
+            period_end = period_start + relativedelta(months=1) - timedelta(seconds=1)
             
-            if period_start > today:
-                # No data for future months
-                offset_orders[offset] = 0
+            if datetime.now() < period_start:
+                row_data[f"Orders Month{offset}"] = 0
+                row_data[f"RR% Month{offset}"] = "0%"
             else:
-                num_orders = api_client.get_orders_for_customers(new_cust_ids, period_start, period_end)
-                offset_orders[offset] = num_orders
-        
-        # 3. Store results in cohorts_data
-        cohorts_data[month_label] = {
-            "cohort_size": new_cust_count,
-            "orders": offset_orders
-        }
-        
-        # 4. Update "All cohorts" aggregator
-        all_cohorts_size += new_cust_count
-        for offset in range(7):
-            all_cohorts_orders[offset] += offset_orders[offset]
-        
-        # Move to next cohort month
-        current_cohort = add_months(current_cohort, 1)
+                if offset == 0:
+                    # SPECIAL HANDLING FOR MONTH 0:
+                    # Only count orders after their first order in the same month
+                    orders = api.get_orders_for_customers(
+                        customer_ids,
+                        # Start from day after first order (implementation depends on your API)
+                        # This requires modifying get_orders_for_customers to accept per-customer start dates
+                        period_start.date(),
+                        period_end.date(),
+                        exclude_first_order=True  # You'll need to add this parameter
+                    )
+                else:
+                    orders = api.get_orders_for_customers(
+                        customer_ids, 
+                        period_start.date(),
+                        period_end.date()
+                    )
+                
+                rr_percent = (orders / cohort_size * 100) if cohort_size > 0 else 0
+                row_data[f"Orders Month{offset}"] = orders
+                row_data[f"RR% Month{offset}"] = f"{rr_percent:.1f}%"
 
-    # Build a list of rows for CSV output
-    csv_rows = []
-    
-    # "All cohorts" row
-    all_cohorts_row = {
-        "Cohort Month": "All cohorts",
-        "New Customers": all_cohorts_size
-    }
-    for offset in range(7):
-        all_cohorts_row[f"Orders Month{offset}"] = all_cohorts_orders[offset]
-        if all_cohorts_size > 0:
-            rr_percent = (all_cohorts_orders[offset] / all_cohorts_size) * 100
-            all_cohorts_row[f"RR% Month{offset}"] = f"{rr_percent:.1f}%"
-        else:
-            all_cohorts_row[f"RR% Month{offset}"] = ""
-    csv_rows.append(all_cohorts_row)
-    
-    # Then each monthly row
-    for month_label, data in cohorts_data.items():
-        row = {
-            "Cohort Month": month_label,
-            "New Customers": data["cohort_size"]
-        }
-        c_size = data["cohort_size"]
-        for offset in range(7):
-            orders = data["orders"][offset]
-            row[f"Orders Month{offset}"] = orders
-            if c_size > 0:
-                rr_percent = (orders / c_size) * 100
-                row[f"RR% Month{offset}"] = f"{rr_percent:.1f}%"
-            else:
-                row[f"RR% Month{offset}"] = ""
-        csv_rows.append(row)
-    
-    # Export the CSV using your MetricsExporter method
-    exporter = MetricsExporter(output_dir=output_dir)
-    exporter.export_recent_repeat_report(csv_rows, filename="Customer_Cohort_Analysis.csv")
-    logger.info(f"Customer cohort analysis exported to {output_dir}{os.sep}Customer_Cohort_Analysis.csv")
-    print(f"Report generated: {output_dir}{os.sep}Customer_Cohort_Analysis.csv")
+        report_rows.append(row_data)
+        logger.info(f"Processed {month_str}: {cohort_size} new customers")
+
+    exporter.export_recent_repeat_report(
+        report_rows=report_rows,
+        filename="Assist- Recent Customer Repeat.csv"
+    )
