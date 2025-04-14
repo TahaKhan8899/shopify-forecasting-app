@@ -358,3 +358,22 @@ class MetricsExporter:
         except IOError as e:
             logger.error(f"Error exporting Recent Customer Repeat report to CSV: {str(e)}")
             raise
+    def export_active_non_recent_report(self, report_data: List[Dict], filename: str) -> str:
+        """Export Active Non-Recent Repeat report"""
+        filepath = os.path.join(self.output_dir, filename)
+        
+        with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=[
+                'Initial Order Prior to...',
+                'Re-Ordered Between',
+                'Active Non-Recent Customers',
+                'Time',
+                'Active Non-Recent Customer Orders (L30)',
+                'RR %'
+            ])
+            writer.writeheader()
+            writer.writerows(report_data)
+        
+        return filepath
+            
+            

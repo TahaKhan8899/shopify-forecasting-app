@@ -1,6 +1,6 @@
 import os
 import argparse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,date
 import logging
 import sys
 from typing import Tuple
@@ -288,13 +288,36 @@ def main():
     parser.add_argument('--cohort-end', type=str,
                       help="End month for cohort analysis (YYYY-MM)")
     
+    # Active Non-Recent report arguments
+    parser.add_argument('--non-recent-report', action='store_true',
+                      help="Generate Active Non-Recent Repeat report")
+    parser.add_argument('--initial-end', type=str,
+                      help="Cutoff date for initial orders (YYYY-MM-DD)")
+    parser.add_argument('--reorder-start', type=str,
+                      help="Start date for reorder period (YYYY-MM-DD)")
+    parser.add_argument('--reorder-end', type=str,
+                      help="End date for reorder period (YYYY-MM-DD)")
+    
     # Common arguments
     parser.add_argument('--output-dir', type=str, default="reports",
                       help="Output directory for generated reports")
 
     args = parser.parse_args()
 
-    if args.cohort_report:
+    if args.non_recent_report:
+        from metrics import non_recent
+        # Use fixed dates if none provided (matching your Google Sheet example)
+        initial_end = datetime.strptime(args.initial_end, "%Y-%m-%d").date() if args.initial_end else date(2024, 11, 30)
+        reorder_start = datetime.strptime(args.reorder_start, "%Y-%m-%d").date() if args.reorder_start else date(2024, 12, 1)
+        reorder_end = datetime.strptime(args.reorder_end, "%Y-%m-%d").date() if args.reorder_end else date(2025, 3, 31)
+        
+        non_recent.generate_active_non_recent_report(
+            initial_end=initial_end,
+            reorder_start=reorder_start,
+            reorder_end=reorder_end,
+            output_dir=args.output_dir
+        )
+    elif args.cohort_report:
         # Validate cohort parameters
         if not args.cohort_start or not args.cohort_end:
             parser.error("--cohort-start and --cohort-end required for cohort reports")

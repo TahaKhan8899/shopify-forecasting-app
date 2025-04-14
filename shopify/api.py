@@ -2,7 +2,7 @@ import os
 import requests
 import logging
 from typing import Dict, List, Optional, Any, Union
-from datetime import datetime,timezone, timedelta
+from datetime import datetime,timezone, timedelta, date
 import calendar
 import json
 from typing import Set
@@ -454,6 +454,61 @@ class ShopifyAPI:
         """
         customers = self.get_new_customers(start_date, end_date, limit)
         return [customer["id"] for customer in customers]
+      
+    # Add to ShopifyAPI class
+    def get_active_non_recent_customers(self, initial_end: date, reorder_start: date, reorder_end: date) -> Dict:
+        """
+        Get count of customers who ordered before initial_end and also between reorder dates.
+        Returns metrics about customer counts and retention.
+        """
+        def to_utc(d: date) -> datetime:
+            return datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
+        
+        initial_start = datetime(1970, 1, 1, tzinfo=timezone.utc)  
+        initial_end_dt = to_utc(initial_end)
+        reorder_start_dt = to_utc(reorder_start) 
+        reorder_end_dt = to_utc(reorder_end)
+        l30_start_dt = reorder_end_dt - timedelta(days=30)
+
+        # Get all orders before initial_end date
+        initial_orders = self.fetch_all_orders(initial_start, initial_end_dt)
+        initial_customers = set()
+        for order in initial_orders:
+            customer = order.get('customer')
+            if customer and customer.get('id'):
+                initial_customers.add(customer['id'])
+
+        # Get orders in reorder period (Jan 1 - Mar 31)
+        reorder_orders = self.fetch_all_orders(reorder_start_dt, reorder_end_dt)
+        reorder_customers = set()
+        for order in reorder_orders:
+            customer = order.get('customer')
+            if customer and customer.get('id') in initial_customers:
+                reorder_customers.add(customer['id'])
+
+        # Get orders in L30 period (Mar 1 - Mar 31)
+        l30_orders = self.fetch_all_orders(l30_start_dt, reorder_end_dt)
+        l30_customers = set()
+        for order in l30_orders:
+            customer = order.get('customer')
+            if customer and customer.get('id') in initial_customers:
+                l30_customers.add(customer['id'])
+
+        # Calculate metrics
+        initial_count = len(initial_customers)
+        active_non_recent = len(reorder_customers)
+        l30_count = len(l30_customers)
+        rr_percent = (active_non_recent / initial_count * 100) if initial_count > 0 else 0
+
+        return {
+            'initial_period': f"Prior to {initial_end.strftime('%b %d, %Y')}",
+            'reorder_period': f"{reorder_start.strftime('%b %d')} - {reorder_end.strftime('%b %d')}",
+            'initial_customers': initial_count,
+            'active_non_recent_customers': active_non_recent,
+            'l30_customers': l30_count,
+            'rr_percent': rr_percent,
+            'time_period': reorder_end.strftime('%b %y')
+        }
 
 def create_api_client() -> ShopifyAPI:
     """
